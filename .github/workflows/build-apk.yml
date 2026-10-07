@@ -11,12 +11,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Extract Debby HTML
+      - name: Extract Debby Barcode HTML
         run: |
           unzip -o Debby_Barcode.zip -d extracted
+          test -f extracted/Debby.html
 
       - name: Create Android project
         run: |
@@ -76,6 +77,14 @@ jobs:
               }
           }
 
+          configurations.configureEach {
+              resolutionStrategy.eachDependency { details ->
+                  if (details.requested.group == 'org.jetbrains.kotlin') {
+                      details.useVersion '1.8.22'
+                  }
+              }
+          }
+
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.7.0'
               implementation 'androidx.webkit:webkit:1.12.1'
@@ -100,8 +109,8 @@ jobs:
               <application
                   android:theme="@style/AppTheme"
                   android:label="RasyAI Sitamiang"
-                  android:usesCleartextTraffic="true"
-                  android:hardwareAccelerated="true">
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="true">
 
                   <activity
                       android:name=".MainActivity"
@@ -116,6 +125,7 @@ jobs:
                   </activity>
 
               </application>
+
           </manifest>
           EOF
 
@@ -123,9 +133,8 @@ jobs:
           package com.rahmatsyariah.sitamiang;
 
           import android.Manifest;
-          import android.app.Activity;
-          import android.os.Bundle;
           import android.content.pm.PackageManager;
+          import android.os.Bundle;
           import android.webkit.PermissionRequest;
           import android.webkit.WebChromeClient;
           import android.webkit.WebSettings;
@@ -151,9 +160,9 @@ jobs:
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
                   settings.setAllowFileAccess(false);
                   settings.setAllowContentAccess(false);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
 
                   WebViewAssetLoader assetLoader =
                           new WebViewAssetLoader.Builder()
@@ -173,37 +182,43 @@ jobs:
                   });
 
                   webView.setWebChromeClient(new WebChromeClient() {
+
                       @Override
-                      public void onPermissionRequest(final PermissionRequest request) {
+                      public void onPermissionRequest(
+                              final PermissionRequest request) {
+
                           runOnUiThread(() -> {
+
                               if (android.os.Build.VERSION.SDK_INT >= 23 &&
                                   checkSelfPermission(Manifest.permission.CAMERA)
-                                          != PackageManager.PERMISSION_GRANTED) {
+                                      != PackageManager.PERMISSION_GRANTED) {
 
                                   requestPermissions(
-                                          new String[]{Manifest.permission.CAMERA},
-                                          CAMERA_REQUEST
+                                      new String[]{Manifest.permission.CAMERA},
+                                      CAMERA_REQUEST
                                   );
-                                  return;
-                              }
 
-                              request.grant(request.getResources());
+                              } else {
+
+                                  request.grant(request.getResources());
+
+                              }
                           });
                       }
                   });
 
                   if (android.os.Build.VERSION.SDK_INT >= 23 &&
                       checkSelfPermission(Manifest.permission.CAMERA)
-                              != PackageManager.PERMISSION_GRANTED) {
+                          != PackageManager.PERMISSION_GRANTED) {
 
                       requestPermissions(
-                              new String[]{Manifest.permission.CAMERA},
-                              CAMERA_REQUEST
+                          new String[]{Manifest.permission.CAMERA},
+                          CAMERA_REQUEST
                       );
                   }
 
                   webView.loadUrl(
-                          "https://appassets.androidplatform.net/assets/index.html"
+                      "https://appassets.androidplatform.net/assets/index.html"
                   );
               }
 
@@ -214,9 +229,9 @@ jobs:
                       int[] grantResults) {
 
                   super.onRequestPermissionsResult(
-                          requestCode,
-                          permissions,
-                          grantResults
+                      requestCode,
+                      permissions,
+                      grantResults
                   );
 
                   if (requestCode == CAMERA_REQUEST &&
@@ -229,27 +244,30 @@ jobs:
 
               @Override
               protected void onDestroy() {
+
                   if (webView != null) {
                       webView.destroy();
                   }
+
                   super.onDestroy();
               }
           }
           EOF
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v5
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
       - name: Build APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
