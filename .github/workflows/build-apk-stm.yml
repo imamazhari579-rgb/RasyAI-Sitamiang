@@ -1,0 +1,280 @@
+name: Build CEK HARGA STM APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract barcode app
+        run: |
+          unzip -o Debby_Barcode.zip -d extracted
+          test -f extracted/Debby.html
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/rahmatsyariah/sitamiang
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+
+          cp extracted/Debby.html app/src/main/assets/index.html
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "CEK-HARGA-STM"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.rahmatsyariah.sitamiang'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.rahmatsyariah.sitamiang'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 2
+                  versionName '2.0'
+              }
+          }
+
+          configurations.configureEach {
+              resolutionStrategy.eachDependency { details ->
+                  if (details.requested.group == 'org.jetbrains.kotlin') {
+                      details.useVersion '1.8.22'
+                  }
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'androidx.webkit:webkit:1.12.1'
+          }
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme"
+                  parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.CAMERA" />
+
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="CEK HARGA STM"
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:screenOrientation="portrait"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+
+                  </activity>
+
+              </application>
+
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/rahmatsyariah/sitamiang/MainActivity.java <<'EOF'
+          package com.rahmatsyariah.sitamiang;
+
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+
+          import androidx.annotation.Nullable;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.webkit.WebViewAssetLoader;
+          import androidx.webkit.WebViewClientCompat;
+
+          public class MainActivity extends AppCompatActivity {
+
+              private static final int CAMERA_REQUEST = 1001;
+              private WebView webView;
+
+              @Override
+              protected void onCreate(@Nullable Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setAllowFileAccess(false);
+                  settings.setAllowContentAccess(false);
+
+                  WebViewAssetLoader assetLoader =
+                      new WebViewAssetLoader.Builder()
+                          .addPathHandler(
+                              "/assets/",
+                              new WebViewAssetLoader.AssetsPathHandler(this)
+                          )
+                          .build();
+
+                  webView.setWebViewClient(new WebViewClientCompat() {
+                      @Override
+                      public android.webkit.WebResourceResponse
+                      shouldInterceptRequest(
+                          WebView view,
+                          android.webkit.WebResourceRequest request) {
+                          return assetLoader.shouldInterceptRequest(
+                              request.getUrl()
+                          );
+                      }
+                  });
+
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onPermissionRequest(
+                          final PermissionRequest request) {
+
+                          runOnUiThread(() -> {
+
+                              if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                                  checkSelfPermission(Manifest.permission.CAMERA)
+                                  != PackageManager.PERMISSION_GRANTED) {
+
+                                  requestPermissions(
+                                      new String[]{
+                                          Manifest.permission.CAMERA
+                                      },
+                                      CAMERA_REQUEST
+                                  );
+
+                              } else {
+                                  request.grant(request.getResources());
+                              }
+                          });
+                      }
+                  });
+
+                  if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                      checkSelfPermission(Manifest.permission.CAMERA)
+                      != PackageManager.PERMISSION_GRANTED) {
+
+                      requestPermissions(
+                          new String[]{Manifest.permission.CAMERA},
+                          CAMERA_REQUEST
+                      );
+                  }
+
+                  webView.loadUrl(
+                      "https://appassets.androidplatform.net/assets/index.html"
+                  );
+              }
+
+              @Override
+              public void onRequestPermissionsResult(
+                  int requestCode,
+                  String[] permissions,
+                  int[] grantResults) {
+
+                  super.onRequestPermissionsResult(
+                      requestCode,
+                      permissions,
+                      grantResults
+                  );
+
+                  if (requestCode == CAMERA_REQUEST &&
+                      grantResults.length > 0 &&
+                      grantResults[0] ==
+                      PackageManager.PERMISSION_GRANTED) {
+
+                      webView.reload();
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+
+                  if (webView != null) {
+                      webView.destroy();
+                  }
+
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build APK
+        run: |
+          gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CEK-HARGA-STM-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
