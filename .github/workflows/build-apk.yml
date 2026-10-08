@@ -1,4 +1,4 @@
-name: Build RasyAI Sitamiang APK
+name: Build CEK HARGA STM APK
 
 on:
   workflow_dispatch:
@@ -18,14 +18,17 @@ jobs:
         run: |
           unzip -o Debby_Barcode.zip -d extracted
           test -f extracted/Debby.html
+          test -f app_icon.png
 
       - name: Create Android project
         run: |
           mkdir -p app/src/main/java/com/rahmatsyariah/sitamiang
           mkdir -p app/src/main/assets
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
 
           cp extracted/Debby.html app/src/main/assets/index.html
+          cp app_icon.png app/src/main/res/drawable/app_icon.png
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -44,7 +47,7 @@ jobs:
               }
           }
 
-          rootProject.name = "RasyAI-Sitamiang"
+          rootProject.name = "CEK-HARGA-STM"
           include(":app")
           EOF
 
@@ -72,8 +75,8 @@ jobs:
                   applicationId 'com.rahmatsyariah.sitamiang'
                   minSdk 23
                   targetSdk 35
-                  versionCode 1
-                  versionName '1.0'
+                  versionCode 2
+                  versionName '2.0'
               }
           }
 
@@ -108,7 +111,9 @@ jobs:
 
               <application
                   android:theme="@style/AppTheme"
-                  android:label="RasyAI Sitamiang"
+                  android:label="CEK HARGA STM"
+                  android:icon="@drawable/app_icon"
+                  android:roundIcon="@drawable/app_icon"
                   android:hardwareAccelerated="true"
                   android:usesCleartextTraffic="true">
 
@@ -272,6 +277,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RasyAI-Sitamiang-Barcode-APK
+          name: CEK-HARGA-STM-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
